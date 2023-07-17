@@ -1,6 +1,9 @@
 import torch
 import nni.retiarii.nn.pytorch as nn
-
+### Changjae Lee @ 2022-09-22 
+#from sklearn.metrics import confusion_matrix 
+# https://torchmetrics.readthedocs.io/en/stable/classification/fbeta_score.html 
+from torchmetrics import FBetaScore 
 
 def get_parameters(model, keys=None, mode='include'):
     if keys is None:
@@ -69,26 +72,62 @@ def make_divisible(v, divisor, min_val=None):
         new_v += divisor
     return new_v
 
+### Changjae Lee @ 2022-09-19 
+# def accuracy(output, target, topk=(1,)):
+#     """ Computes the precision@k for the specified values of k """
+#     maxk = max(topk)
+#     batch_size = target.size(0)
 
-def accuracy(output, target, topk=(1,)):
-    """ Computes the precision@k for the specified values of k """
-    maxk = max(topk)
+#     _, pred = output.topk(maxk, 1, True, True)
+#     pred = pred.t()
+#     # one-hot case
+#     if target.ndimension() > 1:
+#         target = target.max(1)[1]
+
+#     correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+#     res = dict()
+#     for k in topk:
+#         correct_k = correct[:k].reshape(-1).float().sum(0)
+#         res["acc{}".format(k)] = correct_k.mul_(1.0 / batch_size).item()
+#     return res
+
+### Changjae Lee @ 2022-09-19 
+def bin_accuracy(output, target): 
     batch_size = target.size(0)
+    correct = 0 
+    
+    # output (batch_size, 2) 
+    # labels (batch_size, ) 
+    
+    _, pred = output.topk(1, 1, True, True)
+    #pred = pred.t()
+    #correct = pred.eq(target.view(1, -1).expand_as(pred)) 
+    correct += pred.eq(target.view_as(pred)).sum() 
+    correct = correct.float().mul_(1.0 / batch_size).item()
 
-    _, pred = output.topk(maxk, 1, True, True)
-    pred = pred.t()
-    # one-hot case
-    if target.ndimension() > 1:
-        target = target.max(1)[1]
+    res = dict() 
+    res["acc{}".format(1)] = correct 
 
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
+    return res  
 
-    res = dict()
-    for k in topk:
-        correct_k = correct[:k].reshape(-1).float().sum(0)
-        res["acc{}".format(k)] = correct_k.mul_(1.0 / batch_size).item()
-    return res
+### Changjae Lee @ 2022-09-22 
+def bin_f_beta(output, target, device): 
+    _, pred = output.topk(1, 1, True, True) 
+    f_beta = FBetaScore(num_classes=2, beta=2).to(device) 
+    F_beta_score = f_beta(pred.view(-1), target.view(-1))
+    # C = confusion_matrix(target.view(-1), pred.view(-1)) 
+    
+    # precision = C[1][1] / (C[1][1] + C[0][1]) 
+    # sensitivity = C[1][1] / (C[1][1] + C[1][0]) 
+    
+    #F_beta_score = (1+2**2) * (precision * sensitivity) / ((2**2)*precision + sensitivity)
 
+    res = dict() 
+    # https://stackoverflow.com/questions/49768306/pytorch-tensor-to-numpy-array 
+    res["acc{}".format(1)] = F_beta_score.detach().cpu().numpy()
+
+    return res  
 
 class LabelSmoothingLoss(nn.Module):
     def __init__(self, smoothing=0.1, dim=-1):

@@ -5,15 +5,16 @@ import sys
 from argparse import ArgumentParser
 
 import torch
-from torchvision import transforms
+#from torchvision import transforms
 from nni.retiarii.fixed import fixed_arch
 
 import datasets 
-### Changjae Lee @ 2022-09-17 
-# SearchMobileNet -> SearchTinyMLNet
-from model import SearchTinyMLNet
-### Changjae Lee @ 2022-09-19 
-# accuracy -> bin_accuracy 
+### Changjae Lee @ 2022-09-22  
+# SearchMobileNet -> SearchTinyMLNet -> SearchTinyMLNet_div -> SearchTinyMLNet_e 
+# -> ShuffleNetV2OneShot 
+from model import ShuffleNetV2OneShot  
+### Changjae Lee @ 2022-09-22 
+# accuracy -> bin_accuracy -> bin_f_beta -> bin_accuracy 
 from putils import LabelSmoothingLoss, bin_accuracy, get_parameters
 from retrain import Retrain 
 ### Changjae Lee @ 2022-09-17 
@@ -24,16 +25,22 @@ logger = logging.getLogger('nni_proxylessnas')
 if __name__ == "__main__":
     parser = ArgumentParser("proxylessnas")
     # configurations of the model 
-    parser.add_argument("--n_cell_stages", default='4,4,4,4,4,1', type=str)
+    ### Changjae Lee @ 2022-09-22 
+    # n_cell_stages -> stage_blocks 
+    parser.add_argument("--stage_blocks", default='4,4,4,4,4,1', type=str)
     ### Changjae Lee @ 2022-09-17 
     # default='2,2,2,1,2,1' -> default='1,1,1,1,2,1' 
-    parser.add_argument("--stride_stages", default='1,1,1,1,2,1', type=str)
+    ### Changjae Lee @ 2022-09-22 
+    # stride_stages -> stage_strides 
+    parser.add_argument("--stage_strides", default='1,1,1,1,2,1', type=str)
     ### Changjae Lee @ 2022-09-17 
     # default='24,40,80,96,192,320' -> default='8,8,16,16,24,40' 
-    parser.add_argument("--width_stages", default='8,8,16,16,24,40', type=str)
-    parser.add_argument("--bn_momentum", default=0.1, type=float)
-    parser.add_argument("--bn_eps", default=1e-3, type=float)
-    parser.add_argument("--dropout_rate", default=0, type=float)
+    ### Changjae Lee @ 2022-09-22 
+    # width_stages -> stage_channels 
+    parser.add_argument("--stage_channels", default='8,8,16,16,24,40', type=str)
+    #parser.add_argument("--bn_momentum", default=0.1, type=float)
+    #parser.add_argument("--bn_eps", default=1e-3, type=float)
+    #parser.add_argument("--dropout_rate", default=0, type=float)
     parser.add_argument("--no_decay_keys", default='bn', type=str, choices=[None, 'bn', 'bn#bias'])
     parser.add_argument('--grad_reg_loss_type', default='add#linear', type=str, choices=['add#linear', 'mul#log'])
     parser.add_argument('--grad_reg_loss_lambda', default=1e-1, type=float)  # grad_reg_loss_params
@@ -55,10 +62,10 @@ if __name__ == "__main__":
     parser.add_argument("--n_worker", default=32, type=int)
     ### Changjae Lee @ 2022-09-17 
     # default=0.08 -> default=0.0 
-    parser.add_argument("--resize_scale", default=0.0, type=float)
+    #parser.add_argument("--resize_scale", default=0.0, type=float)
     ### Changjae Lee @ 2022-09-17 
     # default='normal' -> default='None' 
-    parser.add_argument("--distort_color", default='None', type=str, choices=['normal', 'strong', 'None'])
+    #parser.add_argument("--distort_color", default='None', type=str, choices=['normal', 'strong', 'None'])
     # configurations for training mode
     parser.add_argument("--train_mode", default='search', type=str, choices=['search', 'retrain'])
     # configurations for search
@@ -67,15 +74,18 @@ if __name__ == "__main__":
     # default='./search_tinyml_net.pt' -> default='./checkpoint/'
     parser.add_argument("--checkpoint_path", default='./checkpoint/', type=str)
     parser.add_argument("--arch_path", default='./arch_path.pt', type=str)
-    parser.add_argument("--no-warmup", dest='warmup', action='store_false')
+    ### Changjae Lee @ 2022-09-22 
+    #parser.add_argument("--no-warmup", dest='warmup', action='store_false')
     # configurations for retrain
     parser.add_argument("--exported_arch_path", default=None, type=str)
     ### Changjae Lee @ 2022-09-17 
     parser.add_argument("--n_classes", default=2, type=int)
     parser.add_argument("--train_trainer_epochs", default=150, type=int) 
     parser.add_argument("--retrain_trainer_epochs", default=30, type=int) 
-    ### Changjae Lee @ 2022-09-21 
-    parser.add_argument("--output_size", default=16, type=int) 
+    ### Changjae Lee @ 2022-09-22 
+    parser.add_argument("--first_conv_channels", default=8, type=int) 
+    parser.add_argument("--last_conv_channels", default=16, type=int) 
+    parser.add_argument("--pool", default='a', type=str) 
 
     args = parser.parse_args()
     if args.train_mode == 'retrain' and args.exported_arch_path is None:
@@ -90,33 +100,55 @@ if __name__ == "__main__":
             # SearchMobileNet() -> SearchTinyMLNet()
             # n_classes=1000 -> n_classes=args.n_classes 
             # X -> output_size=args.output_size 
-            model = SearchTinyMLNet(width_stages=[int(i) for i in args.width_stages.split(',')],
-                                    n_cell_stages=[int(i) for i in args.n_cell_stages.split(',')],
-                                    stride_stages=[int(i) for i in args.stride_stages.split(',')],
-                                    n_classes=args.n_classes,
-                                    dropout_rate=args.dropout_rate,
-                                    bn_param=(args.bn_momentum, args.bn_eps), 
-                                    output_size=args.output_size)
+            # SearchTinyMLNet -> SearchTinyMLNet_div -> SearchTinyMLNet_e 
+            # -> ShuffleNetV2OneShot 
+
+            # X -> first_conv_channels 
+            # output_size -> last_conv_channels 
+            # width_stages -> stage_channels 
+            # n_cell_stages -> stage_blocks 
+            # stride_stages -> stage_strides 
+            # dropout_rate -> X 
+            # bn_param -> X 
+            # X -> pool 
+            model = ShuffleNetV2OneShot(first_conv_channels=args.first_conv_channels, 
+                                        last_conv_channels=args.last_conv_channels, 
+                                        n_classes=args.n_classes, 
+                                        stage_channels=[int(i) for i in args.stage_channels.split(',')],
+                                        stage_blocks=[int(i) for i in args.stage_blocks.split(',')],
+                                        stage_strides=[int(i) for i in args.stage_strides.split(',')],
+                                        pool=args.pool) 
     else:
         ### Changjae Lee @ 2022-09-17 
         # SearchMobileNet() -> SearchTinyMLNet() 
         # n_classes=1000 -> n_classes=args.n_classes 
         # X -> output_size=args.output_size 
-        model = SearchTinyMLNet(width_stages=[int(i) for i in args.width_stages.split(',')],
-                                n_cell_stages=[int(i) for i in args.n_cell_stages.split(',')],
-                                stride_stages=[int(i) for i in args.stride_stages.split(',')],
-                                n_classes=args.n_classes,
-                                dropout_rate=args.dropout_rate,
-                                bn_param=(args.bn_momentum, args.bn_eps), 
-                                output_size=args.output_size)
+        # SearchTinyMLNet -> SearchTinyMLNet_div -> SearchTinyMLNet_e 
+        # -> ShuffleNetV2OneShot 
+            
+        # X -> first_conv_channels 
+        # output_size -> last_conv_channels 
+        # width_stages -> stage_channels 
+        # n_cell_stages -> stage_blocks 
+        # stride_stages -> stage_strides 
+        # dropout_rate -> X 
+        # bn_param -> X 
+        # X -> pool 
+        model = ShuffleNetV2OneShot(first_conv_channels=args.first_conv_channels, 
+                                    last_conv_channels=args.last_conv_channels, 
+                                    n_classes=args.n_classes, 
+                                    stage_channels=[int(i) for i in args.stage_channels.split(',')],
+                                    stage_blocks=[int(i) for i in args.stage_blocks.split(',')],
+                                    stage_strides=[int(i) for i in args.stage_strides.split(',')],
+                                    pool=args.pool) 
     
     ### Changjae Lee @ 2022-09-17 
-    # SearchMobileNet -> SearchTinyMLNet
-    logger.info('SearchTinyMLNet model create done')
-    model.init_model()
-    ### Changjae Lee @ 2022-09-17 
-    # SearchMobileNet -> SearchTinyMLNet
-    logger.info('SearchTinyMLNet model init done')
+    # SearchMobileNet -> SearchTinyMLNet -> ShuffleNetV2OneShot 
+    # logger.info('ShuffleNetV2OneShot model create done')
+    # model.init_model()
+    # ### Changjae Lee @ 2022-09-17 
+    # # SearchMobileNet -> SearchTinyMLNet -> ShuffleNetV2OneShot 
+    # logger.info('ShuffleNetV2OneShot model init done')
 
     ### Changjae Lee @ 2022-09-17 
     # move network to GPU if available
@@ -179,7 +211,8 @@ if __name__ == "__main__":
         # dummy_input=(1, 3, 224, 224) -> dummpy_input=(1, 1250)
         # num_epochs=120 -> num_epochs=args.train_trainer_epochs 
         ### Changjae Lee @ 2022-09-19 
-        # accuracy(output, target, topk=(1,)) -> bin_accuracy(output, target) 
+        # accuracy(output, target, topk=(1,)) -> bin_accuracy(output, target) -> bin_f_beta(output, target) 
+        # -> bin_accuracy(output, target)
         trainer = ProxylessTrainer(model,
                                    loss=torch.nn.CrossEntropyLoss(),
                                    dataset=dataset,

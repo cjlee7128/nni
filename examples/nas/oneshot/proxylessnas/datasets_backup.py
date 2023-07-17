@@ -3,8 +3,6 @@ import numpy as np
 import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-### Changjae Lee @ 2022-09-17 
-from help_proxylessnas import TinyML2NumpyDataset 
 
 def get_split_list(in_dim, child_num):
     in_dim_list = [in_dim // child_num] * child_num
@@ -188,88 +186,3 @@ class ImagenetDataProvider(DataProvider):
     @property
     def image_size(self):
         return 224
-
-### Changjae Lee @ 2022-09-17 
-class TinyMLDataProvider(DataProvider):
-
-    def __init__(self, save_path=None, train_batch_size=32, test_batch_size=64, valid_size=None,
-                 n_worker=32):
-
-        # '/data/tinyml/' 
-        self._save_path = save_path 
-        train_dataset = TinyML2NumpyDataset(np.load(save_path + 'X_train_ft32.npy'), np.load(save_path + 'y_train_ft32.npy'))
-        
-        if valid_size is not None:
-            if isinstance(valid_size, float):
-                valid_size = int(valid_size * len(train_dataset))
-            else:
-                assert isinstance(valid_size, int), 'invalid valid_size: %s' % valid_size
-            train_indexes, valid_indexes = self.random_sample_valid_set(
-                [cls for _, cls in train_dataset.samples], valid_size, self.n_classes,
-            )
-            train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_indexes)
-            valid_sampler = torch.utils.data.sampler.SubsetRandomSampler(valid_indexes)
-
-            valid_dataset = TinyML2NumpyDataset(np.load(save_path + 'X_train_ft32.npy'), np.load(save_path + 'y_train_ft32.npy'))
-
-            self.train = torch.utils.data.DataLoader(
-                train_dataset, batch_size=train_batch_size, sampler=train_sampler,
-                num_workers=n_worker, pin_memory=True,
-            )
-            self.valid = torch.utils.data.DataLoader(
-                valid_dataset, batch_size=test_batch_size, sampler=valid_sampler,
-                num_workers=n_worker, pin_memory=True,
-            )
-        else:
-            self.train = torch.utils.data.DataLoader(
-                train_dataset, batch_size=train_batch_size, shuffle=True,
-                num_workers=n_worker, pin_memory=True,
-            )
-            self.valid = None
-
-        self.test = torch.utils.data.DataLoader(
-            TinyML2NumpyDataset(np.load(save_path + 'X_test_ft32.npy'), np.load(save_path + 'y_test_ft32.npy')), 
-            batch_size=test_batch_size, shuffle=False, num_workers=n_worker, pin_memory=True,
-        )
-
-        if self.valid is None:
-            self.valid = self.test
-
-    @staticmethod
-    def name():
-        return 'tinyml'
-
-    @property
-    def data_shape(self):
-        #return 3, self.image_size, self.image_size  # C, H, W
-        return 1250 # 1, 1250? 
-
-    @property
-    def n_classes(self):
-        return 2
-
-    @property
-    def save_path(self):
-        if self._save_path is None:
-            self._save_path = '/data/tinyml/'
-        return self._save_path
-
-    @property
-    def data_url(self):
-        raise ValueError('unable to download TinyML')
-
-    @property
-    def train_path(self):
-        return os.path.join(self.save_path, 'train')
-
-    @property
-    def valid_path(self):
-        return os.path.join(self._save_path, 'val')
-
-    @property
-    def resize_value(self):
-        return 1250
-
-    @property
-    def image_size(self):
-        return 1250

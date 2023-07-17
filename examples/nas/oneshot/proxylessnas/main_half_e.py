@@ -9,9 +9,9 @@ from torchvision import transforms
 from nni.retiarii.fixed import fixed_arch
 
 import datasets 
-### Changjae Lee @ 2022-09-17 
-# SearchMobileNet -> SearchTinyMLNet
-from model import SearchTinyMLNet
+### Changjae Lee @ 2022-09-22  
+# SearchMobileNet -> SearchTinyMLNet -> SearchTinyMLNet_div -> SearchTinyMLNet_e 
+from model import SearchTinyMLNet_e 
 ### Changjae Lee @ 2022-09-19 
 # accuracy -> bin_accuracy 
 from putils import LabelSmoothingLoss, bin_accuracy, get_parameters
@@ -90,7 +90,8 @@ if __name__ == "__main__":
             # SearchMobileNet() -> SearchTinyMLNet()
             # n_classes=1000 -> n_classes=args.n_classes 
             # X -> output_size=args.output_size 
-            model = SearchTinyMLNet(width_stages=[int(i) for i in args.width_stages.split(',')],
+            # SearchTinyMLNet -> SearchTinyMLNet_div -> SearchTinyMLNet_e 
+            model = SearchTinyMLNet_e(width_stages=[int(i) for i in args.width_stages.split(',')],
                                     n_cell_stages=[int(i) for i in args.n_cell_stages.split(',')],
                                     stride_stages=[int(i) for i in args.stride_stages.split(',')],
                                     n_classes=args.n_classes,
@@ -102,7 +103,8 @@ if __name__ == "__main__":
         # SearchMobileNet() -> SearchTinyMLNet() 
         # n_classes=1000 -> n_classes=args.n_classes 
         # X -> output_size=args.output_size 
-        model = SearchTinyMLNet(width_stages=[int(i) for i in args.width_stages.split(',')],
+        # SearchTinyMLNet -> SearchTinyMLNet_div -> SearchTinyMLNet_e 
+        model = SearchTinyMLNet_e(width_stages=[int(i) for i in args.width_stages.split(',')],
                                 n_cell_stages=[int(i) for i in args.n_cell_stages.split(',')],
                                 stride_stages=[int(i) for i in args.stride_stages.split(',')],
                                 n_classes=args.n_classes,
