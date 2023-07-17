@@ -1,5 +1,5 @@
 Pruning Speedup
 ===============
 
-.. autoclass:: nni.compression.pytorch.speedup.ModelSpeedup
+.. autoclass:: nni.compression.speedup.ModelSpeedup
     :members:

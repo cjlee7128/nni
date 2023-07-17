@@ -1,44 +1,37 @@
 Quantizer
 =========
 
-.. _naive-quantizer:
-
-Naive Quantizer
-^^^^^^^^^^^^^^^
-
-..  autoclass:: nni.algorithms.compression.pytorch.quantization.NaiveQuantizer
-
-.. _qat-quantizer:
+.. _NewQATQuantizer:
 
 QAT Quantizer
 ^^^^^^^^^^^^^
 
-..  autoclass:: nni.algorithms.compression.pytorch.quantization.QAT_Quantizer
+..  autoclass:: nni.compression.quantization.QATQuantizer
 
-.. _dorefa-quantizer:
+.. _NewDorefaQuantizer:
 
 DoReFa Quantizer
 ^^^^^^^^^^^^^^^^
 
-..  autoclass:: nni.algorithms.compression.pytorch.quantization.DoReFaQuantizer
+..  autoclass:: nni.compression.quantization.DoReFaQuantizer
 
-.. _bnn-quantizer:
+.. _NewBNNQuantizer:
 
 BNN Quantizer
 ^^^^^^^^^^^^^
 
-..  autoclass:: nni.algorithms.compression.pytorch.quantization.BNNQuantizer
+..  autoclass:: nni.compression.quantization.BNNQuantizer
 
-.. _lsq-quantizer:
+.. _NewLsqQuantizer:
 
 LSQ Quantizer
 ^^^^^^^^^^^^^
 
-..  autoclass:: nni.algorithms.compression.pytorch.quantization.LsqQuantizer
+..  autoclass:: nni.compression.quantization.LsqQuantizer
 
-.. _observer-quantizer:
+.. _NewPtqQuantizer:
 
-Observer Quantizer
-^^^^^^^^^^^^^^^^^^
+PTQ Quantizer
+^^^^^^^^^^^^^
 
-..  autoclass:: nni.algorithms.compression.pytorch.quantization.ObserverQuantizer
+..  autoclass:: nni.compression.quantization.PtqQuantizer

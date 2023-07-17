@@ -3,19 +3,19 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Callable
+from typing import Callable, Tuple
 
 import torch
 from torch.nn import Module
 import torch.nn.functional as F
 from torch.optim import Optimizer
-from torch.optim.lr_scheduler import _LRScheduler
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torchvision import transforms
 
 from ..device import device
+
+from nni.common.types import SCHEDULER
 
 
 class SimpleTorchModel(torch.nn.Module):
@@ -23,11 +23,11 @@ class SimpleTorchModel(torch.nn.Module):
         super().__init__()
         self.conv1 = torch.nn.Conv2d(1, 16, 3)
         self.bn1 = torch.nn.BatchNorm2d(16)
-        self.conv2 = torch.nn.Conv2d(16, 8, 3, groups=4)
-        self.bn2 = torch.nn.BatchNorm2d(8)
-        self.conv3 = torch.nn.Conv2d(16, 8, 3)
-        self.bn3 = torch.nn.BatchNorm2d(8)
-        self.fc1 = torch.nn.Linear(8 * 24 * 24, 100)
+        self.conv2 = torch.nn.Conv2d(16, 32, 3, groups=4)
+        self.bn2 = torch.nn.BatchNorm2d(32)
+        self.conv3 = torch.nn.Conv2d(16, 32, 3)
+        self.bn3 = torch.nn.BatchNorm2d(32)
+        self.fc1 = torch.nn.Linear(32 * 24 * 24, 100)
         self.fc2 = torch.nn.Linear(100, 10)
 
     def forward(self, x: torch.Tensor):
@@ -37,7 +37,14 @@ class SimpleTorchModel(torch.nn.Module):
         return F.log_softmax(x, -1)
 
 
-def training_model(model: Module, optimizer: Optimizer, criterion: Callable, scheduler: _LRScheduler = None,
+def training_step(batch: Tuple, model: Module, device: torch.device = device):
+    x, y = batch[0].to(device), batch[1].to(device)
+    logits = model(x)
+    loss: torch.Tensor = F.nll_loss(logits, y)
+    return loss
+
+
+def training_model(model: Module, optimizer: Optimizer, training_step: Callable, scheduler: SCHEDULER = None,
                    max_steps: int | None = None, max_epochs: int | None = None, device: torch.device = device):
     model.train()
 
@@ -53,11 +60,9 @@ def training_model(model: Module, optimizer: Optimizer, criterion: Callable, sch
 
     # training
     for _ in range(max_epochs):
-        for x, y in train_dataloader:
+        for batch in train_dataloader:
             optimizer.zero_grad()
-            x, y = x.to(device), y.to(device)
-            logits = model(x)
-            loss: torch.Tensor = criterion(logits, y)
+            loss: torch.Tensor = training_step(batch, model, device)
             loss.backward()
             optimizer.step()
             current_steps += 1
